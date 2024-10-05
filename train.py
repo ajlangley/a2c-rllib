@@ -1,10 +1,5 @@
 from a2c.a2c import A2C
 from ray.rllib.connectors.env_to_module.mean_std_filter import MeanStdFilter
-from ray.tune.registry import register_env
-
-from counting_env import CountingEnv
-
-register_env("counting_env", lambda x: CountingEnv())
 
 algo_config = (
     A2C.get_default_config()
@@ -19,7 +14,7 @@ algo_config = (
     )
     .rl_module(
         model_config_dict={
-            "fcnet_hiddens": [128, 128],
+            "fcnet_hiddens": [256, 256],
             "fcnet_activation": "swish",
             "post_fcnet_hiddens": [],
             "post_fcnet_activation": "swish",

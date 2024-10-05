@@ -5,7 +5,7 @@ from ray.rllib.core.models.configs import (
     MLPHeadConfig,
     RecurrentEncoderConfig,
 )
-from ray.rllib.utils.annotations import ExperimentalAPI, override
+from ray.rllib.utils.annotations import override
 
 
 class A2CCatalog(Catalog):

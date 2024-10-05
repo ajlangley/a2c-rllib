@@ -48,7 +48,6 @@ class A2CConfig(AlgorithmConfig):
         self.entropy_coeff = 1e-3
         self.train_batch_size_per_learner = 2048
         self.bootstrap_horizon = 64
-        self._model_config_dict = {}
 
         # Only works with the new API stack
         self.enable_rl_module_and_learner = True
@@ -127,6 +126,11 @@ class A2CConfig(AlgorithmConfig):
         pipeline.prepend(AddShouldBootstrapToBatch())
 
         return pipeline
+
+    @override(AlgorithmConfig)
+    def validate(self):
+        # TODO: Implement this method
+        pass
 
 
 class A2C(Algorithm):

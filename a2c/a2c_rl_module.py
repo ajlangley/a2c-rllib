@@ -8,9 +8,7 @@ class A2CRLModule(RLModule):
     def setup(self):
         catalog = self.config.get_catalog()
 
-        self.pi_encoder = catalog.build_encoder(framework=self.framework)
-        self.vf_encoder = catalog.build_encoder(framework=self.framework)
-
+        self.encoder = catalog.build_encoder(framework=self.framework)
         # Build heads
         self.pi = catalog.build_pi_head(framework=self.framework)
         if not self.config.inference_only:

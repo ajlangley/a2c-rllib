@@ -50,9 +50,8 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
     @override(RLModule)
     def _forward_inference(self, batch):
         # TODO: Support for stateful models
-        outputs = {}
-        pi_encoder_outputs = self.pi_encoder(batch)
-        outputs[Columns.ACTION_DIST_INPUTS] = self.pi(pi_encoder_outputs[ENCODER_OUT])
+        outputs = self.encoder(batch)
+        outputs[Columns.ACTION_DIST_INPUTS] = self.pi(outputs[ENCODER_OUT])
 
         return outputs
 
@@ -65,11 +64,15 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
         outputs = self._forward_inference(batch)
 
         # Value predictions
-        outputs[Columns.VF_PREDS] = self.compute_values(batch)
+        outputs[Columns.VF_PREDS] = self.vf(outputs[ENCODER_OUT]).squeeze(-1)
 
         # Bootstrap value predictions
+        # TODO: Make this more efficient!
         next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
-        outputs[Columns.VALUES_BOOTSTRAPPED] = self.compute_values(next_obs_batch)
+        next_outputs = self.encoder(next_obs_batch)
+        outputs[Columns.VALUES_BOOTSTRAPPED] = self.vf(
+            next_outputs[ENCODER_OUT]
+        ).squeeze(-1)
 
         return outputs
 

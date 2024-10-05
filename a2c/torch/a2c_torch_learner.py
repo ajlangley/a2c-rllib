@@ -141,12 +141,6 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
         )
         # TODO: Make clipping param configurable
         # vf_losses = torch.clamp(vf_losses, 0, 10)
-        import numpy as np
-
-        r = np.random.choice(np.arange(len(vf_losses)), size=(5,))
-        print([self.symexp(fwd_out[Columns.VF_PREDS][ri]).item() for ri in r])
-        print([return_estimates[ri].item() for ri in r])
-        print(vf_losses.mean(), vf_losses.requires_grad)
 
         return possibly_masked_mean(vf_losses)
 
