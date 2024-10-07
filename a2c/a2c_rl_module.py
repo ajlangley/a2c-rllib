@@ -12,8 +12,16 @@ class A2CRLModule(RLModule):
         # Build heads
         self.pi = catalog.build_pi_head(framework=self.framework)
         if not self.config.inference_only:
-            self.vf = catalog.build_vf_head(framework=self.framework)
-
+            self.vf = catalog._get_head_config(output_dim=1).build(
+                framework=self.framework
+            )
+            self.dynamics_model = catalog.build_dynamics_model(framework=self.framework)
+            self.reward_model = catalog.build_single_output_head(
+                framework=self.framework
+            )
+            self.value_model = catalog.build_single_output_head(
+                framework=self.framework
+            )
         self.action_dist_cls = catalog.get_action_dist_cls(framework=self.framework)
 
     @override(RLModule)

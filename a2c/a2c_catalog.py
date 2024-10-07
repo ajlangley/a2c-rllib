@@ -29,8 +29,20 @@ class A2CCatalog(Catalog):
             framework=framework
         )
 
-    def build_vf_head(self, framework):
+    def build_single_output_head(self, framework):
         return self._get_head_config(output_dim=1).build(framework=framework)
+
+    def build_dynamics_model(self, framework):
+        return MLPHeadConfig(
+            input_dims=self.latent_dims,
+            hidden_layer_dims=self._model_config_dict.get(
+                "dyn_model_hiddens", (self.latent_dims[-1],) * 2
+            ),
+            hidden_layer_activation=self._model_config_dict.get(
+                "dyn_model_activation", self.output_head_activation
+            ),
+            output_layer_activation="linear",
+        ).build(framework=framework)
 
     def _get_head_config(
         self, input_dim=None, output_dim=None, is_pi_head=False, framework="torch"
