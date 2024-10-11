@@ -70,25 +70,34 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
         outputs[Columns.VF_PREDS] = self.vf(outputs[ENCODER_OUT]).squeeze(-1)
 
         # TODO: Input action?
-        # self._compute_bootstrap_values(outputs[ENCODER_OUT])
+        outputs[Columns.VALUES_BOOTSTRAPPED] = self._compute_bootstrap_values(
+            outputs[ENCODER_OUT], batch[Columns.ACTIONS]
+        )
 
         # Bootstrap value predictions
         # TODO: Make this more efficient!
-        next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
-        next_outputs = self.encoder(next_obs_batch)
-        outputs[Columns.VALUES_BOOTSTRAPPED] = self.vf(
-            next_outputs[ENCODER_OUT]
-        ).squeeze(-1)
+        # next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
+        # next_outputs = self.encoder(next_obs_batch)
+        # outputs[Columns.VALUES_BOOTSTRAPPED] = self.vf(
+        #     next_outputs[ENCODER_OUT]
+        # ).squeeze(-1)
 
         return outputs
+
+    def _compute_bootstrap_values(self, encodings, actions):
+        actions = self._process_actions_for_model_input(actions)
+        model_inputs = torch.cat([encodings.detach(), actions], dim=-1)
+        with torch.no_grad():
+            next_step_latents = self.dynamics_model(model_inputs)
+            bootstrap_values = self.value_model(next_step_latents).squeeze(-1).detach()
+
+        return bootstrap_values
 
     def unroll_model(self, encodings, actions, n_unroll_steps):
         # TODO: Add an extra hidden layer to each of the model output heads
         reward_preds = []
         vf_preds = []
-        actions = F.one_hot(
-            actions.long(), num_classes=self.config.action_space.n
-        )  # TODO: Assume discrete actions
+        actions = self._process_actions_for_model_input(actions)
 
         latents = encodings
         for t in range(n_unroll_steps):
@@ -101,11 +110,10 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
 
         return reward_preds, vf_preds
 
-    def _compute_bootstrap_values(self, encoder_out):
-        next_step_latents = self.dynamics_model(encoder_out)
-        bootstrap_values = self.value_model(next_step_latents).squeeze(-1)
-
-        return bootstrap_values
+    def _process_actions_for_model_input(self, actions):
+        return F.one_hot(
+            actions.long(), num_classes=self.config.action_space.n
+        )  # TODO: Assume discrete actions
 
     @override(ValueFunctionAPI)
     def compute_values(self, batch):
