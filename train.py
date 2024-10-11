@@ -20,7 +20,7 @@ algo_config = (
             "post_fcnet_activation": "swish",
         },
     )
-    .environment(env="LunarLander-v2")
+    .environment(env="CartPole-v1")
     .env_runners(
         num_envs_per_env_runner=32,
         num_env_runners=0,
@@ -30,6 +30,7 @@ algo_config = (
 )
 algo = algo_config.build()
 print(algo.learner_group._learner.module)
+
 step = 0
 while step < 20_000_000:
     training_results = algo.train()

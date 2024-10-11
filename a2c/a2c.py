@@ -45,9 +45,11 @@ class A2CConfig(AlgorithmConfig):
         # training()
         self.lr = 3e-4
         self.vf_loss_coeff = 1.0
+        self.model_loss_coeff = 1.0
         self.entropy_coeff = 1e-3
         self.train_batch_size_per_learner = 2048
         self.bootstrap_horizon = 64
+        self.model_unroll_steps = 5
 
         # Only works with the new API stack
         self.enable_rl_module_and_learner = True
@@ -59,18 +61,24 @@ class A2CConfig(AlgorithmConfig):
         self,
         *,
         vf_loss_coeff=NotProvided,
+        model_loss_coeff=NotProvided,
         entropy_coeff=NotProvided,
         bootstrap_horizon=NotProvided,
+        model_unroll_steps=NotProvided,
         **kwargs,
     ):
         super().training(**kwargs)
 
         if vf_loss_coeff is not NotProvided:
             self.vf_loss_coeff = vf_loss_coeff
+        if model_loss_coeff is not NotProvided:
+            self.model_loss_coeff = model_loss_coeff
         if entropy_coeff is not NotProvided:
             self.entropy_coeff = entropy_coeff
         if bootstrap_horizon is not NotProvided:
             self.bootstrap_horizon = bootstrap_horizon
+        if model_unroll_steps is not NotProvided:
+            self.model_unroll_steps = model_unroll_steps
 
         return self
 
@@ -131,6 +139,13 @@ class A2CConfig(AlgorithmConfig):
     def validate(self):
         # TODO: Implement this method
         pass
+
+    @property
+    @override(AlgorithmConfig)
+    def _model_config_auto_includes(self):
+        return super()._model_config_auto_includes | {
+            "model_unroll_steps": self.model_unroll_steps
+        }
 
 
 class A2C(Algorithm):

@@ -33,8 +33,10 @@ class A2CCatalog(Catalog):
         return self._get_head_config(output_dim=1).build(framework=framework)
 
     def build_dynamics_model(self, framework):
+        # TODO: Making some assumptions here about action space and embedding shape
+        model_input_dims = (int(self.latent_dims[-1] + self.action_space.n),)
         return MLPHeadConfig(
-            input_dims=self.latent_dims,
+            input_dims=model_input_dims,
             hidden_layer_dims=self._model_config_dict.get(
                 "dyn_model_hiddens", (self.latent_dims[-1],) * 2
             ),

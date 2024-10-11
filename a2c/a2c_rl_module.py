@@ -8,6 +8,10 @@ class A2CRLModule(RLModule):
     def setup(self):
         catalog = self.config.get_catalog()
 
+        self.model_unroll_steps = self.config.model_config_dict.get(
+            "model_unroll_steps", 5
+        )
+
         self.encoder = catalog.build_encoder(framework=self.framework)
         # Build heads
         self.pi = catalog.build_pi_head(framework=self.framework)

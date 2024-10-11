@@ -4,7 +4,10 @@ from ray.rllib.core.columns import Columns
 from ray.rllib.core.models.base import ENCODER_OUT
 from ray.rllib.core.rl_module.torch import TorchRLModule
 from ray.rllib.core.rl_module.apis.value_function_api import ValueFunctionAPI
+import torch
+from torch.nn import functional as F
 
+from a2c import MODEL_REWARD_PREDS, MODEL_VF_PREDS
 from a2c.a2c_rl_module import A2CRLModule
 
 
@@ -66,6 +69,9 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
         # Value predictions
         outputs[Columns.VF_PREDS] = self.vf(outputs[ENCODER_OUT]).squeeze(-1)
 
+        # TODO: Input action?
+        # self._compute_bootstrap_values(outputs[ENCODER_OUT])
+
         # Bootstrap value predictions
         # TODO: Make this more efficient!
         next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
@@ -75,6 +81,31 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
         ).squeeze(-1)
 
         return outputs
+
+    def unroll_model(self, encodings, actions, n_unroll_steps):
+        # TODO: Add an extra hidden layer to each of the model output heads
+        reward_preds = []
+        vf_preds = []
+        actions = F.one_hot(
+            actions.long(), num_classes=self.config.action_space.n
+        )  # TODO: Assume discrete actions
+
+        latents = encodings
+        for t in range(n_unroll_steps):
+            model_input = torch.cat([latents, actions[:, t]], dim=-1)
+            latents = self.dynamics_model(model_input)
+            reward_preds.append(self.reward_model(latents).squeeze(-1))
+            vf_preds.append(self.value_model(latents).squeeze(-1))
+        reward_preds = torch.stack(reward_preds, dim=1)
+        vf_preds = torch.stack(vf_preds, dim=1)
+
+        return reward_preds, vf_preds
+
+    def _compute_bootstrap_values(self, encoder_out):
+        next_step_latents = self.dynamics_model(encoder_out)
+        bootstrap_values = self.value_model(next_step_latents).squeeze(-1)
+
+        return bootstrap_values
 
     @override(ValueFunctionAPI)
     def compute_values(self, batch):

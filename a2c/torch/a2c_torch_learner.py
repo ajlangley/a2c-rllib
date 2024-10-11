@@ -4,6 +4,7 @@ from torch.optim import AdamW
 from ray.rllib.core.learner import Learner
 from ray.rllib.core.learner.torch.torch_learner import TorchLearner
 from ray.rllib.core.columns import Columns
+from ray.rllib.core.models.base import ENCODER_OUT
 from ray.rllib.utils.annotations import override
 
 from a2c import SHOULD_BOOTSTRAP
@@ -41,10 +42,17 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
             module_id, return_estimates, batch, fwd_out, possibly_masked_mean
         )
         vf_loss = self._compute_value_loss(
-            module_id, fwd_out, return_estimates, possibly_masked_mean
+            fwd_out, return_estimates, possibly_masked_mean
+        )
+        model_loss = self._compute_model_loss(
+            module_id, batch, fwd_out, possibly_masked_mean
         )
 
-        total_loss = policy_loss + self.config.vf_loss_coeff * vf_loss
+        total_loss = (
+            policy_loss
+            + self.config.vf_loss_coeff * vf_loss
+            + self.config.model_loss_coeff * model_loss
+        )
 
         # self._log_loss_metrics(module_id, policy_loss, vf_loss)
 
@@ -99,39 +107,7 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
 
         return possibly_masked_mean(policy_losses)
 
-    # def _compute_policy_loss(
-    #     self, module_id, return_estimates, batch, fwd_out, mean_fn
-    # ):
-    #     advantages = return_estimates - self.symexp(fwd_out[Columns.VF_PREDS].detach())
-    #     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
-
-    #     # Compute action dists
-    #     action_dist_class_train = (
-    #         self.module[module_id].unwrapped().get_train_action_dist_cls()
-    #     )
-    #     curr_action_dist = action_dist_class_train.from_logits(
-    #         fwd_out[Columns.ACTION_DIST_INPUTS]
-    #     )
-
-    #     # Likelihood ratio
-    #     logp_ratio = torch.exp(
-    #         curr_action_dist.logp(batch[Columns.ACTIONS]) - batch[Columns.ACTION_LOGP]
-    #     )
-
-    #     # Entropy
-    #     curr_entropy = curr_action_dist.entropy()
-    #     mean_entropy = mean_fn(curr_entropy)
-
-    #     surrogate_loss = torch.min(
-    #         advantages * logp_ratio,
-    #         advantages * torch.clamp(logp_ratio, 1 - 0.3, 1 + 0.3),
-    #     )
-
-    #     return -mean_fn(surrogate_loss) - self.config.entropy_coeff * mean_entropy
-
-    def _compute_value_loss(
-        self, module_id, fwd_out, return_estimates, possibly_masked_mean
-    ):
+    def _compute_value_loss(self, fwd_out, return_estimates, possibly_masked_mean):
         assert (
             fwd_out[Columns.VF_PREDS].requires_grad
             and not return_estimates.requires_grad
@@ -143,6 +119,68 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
         # vf_losses = torch.clamp(vf_losses, 0, 10)
 
         return possibly_masked_mean(vf_losses)
+
+    def _compute_model_loss(self, module_id, batch, fwd_out, possibly_masked_mean):
+        encodings = fwd_out[ENCODER_OUT]
+        actions, rewards, values, loss_mask, terminated_mask, _ = (
+            self.build_n_step_batch(batch, fwd_out, self.config.model_unroll_steps)
+        )
+        reward_preds, value_preds = self.module[module_id].unroll_model(
+            encodings, actions, self.config.model_unroll_steps
+        )
+        reward_losses = F.mse_loss(reward_preds, rewards, reduction="none")
+        value_losses = F.mse_loss(value_preds, values.detach(), reduction="none")
+        reward_loss = possibly_masked_mean(reward_losses * loss_mask) / 2.0
+        value_loss = (
+            possibly_masked_mean(value_losses * loss_mask * (1 - terminated_mask)) / 2.0
+        )
+
+        return (reward_loss + value_loss) / 2.0
+
+    def build_n_step_batch(self, batch, fwd_out, n_steps):
+        # TODO: May need to change this for recurrent architectures
+        B = batch[Columns.REWARDS].shape[-1]
+        actions = torch.cat([batch[Columns.ACTIONS], torch.zeros(n_steps - 1)]).unfold(
+            -1, n_steps, 1
+        )
+        rewards = torch.cat([batch[Columns.REWARDS], torch.zeros(n_steps - 1)]).unfold(
+            -1, n_steps, 1
+        )
+        values = torch.cat(
+            [fwd_out[Columns.VF_PREDS], torch.zeros(n_steps - 1)]
+        ).unfold(-1, n_steps, 1)
+
+        # Build the batch mask
+        terminateds = torch.cat(
+            [batch[Columns.TERMINATEDS], torch.zeros(n_steps - 1)]
+        ).unfold(-1, n_steps, 1)
+        should_bootstrap = torch.cat(
+            [batch[SHOULD_BOOTSTRAP], torch.ones(n_steps - 1)]
+        ).unfold(-1, n_steps, 1)
+        has_terminated = (torch.sum(terminateds, dim=-1) > 0).float()
+        has_bootstrap = (torch.sum(should_bootstrap, dim=-1) > 0).float()
+        first_term_indices = torch.argmax(terminateds, dim=-1) + (
+            1 - has_terminated
+        ) * (n_steps - 1)
+        first_bootstrap_indices = torch.argmax(should_bootstrap, dim=-1) + (
+            1 - has_bootstrap
+        ) * (n_steps - 1)
+        episode_bound_indices = torch.min(first_term_indices, first_bootstrap_indices)
+        same_episode_mask = (
+            torch.arange(n_steps).unsqueeze(0).expand((B, -1))
+            <= episode_bound_indices.unsqueeze(-1)
+        ).float()
+        terminated_mask = terminateds * same_episode_mask
+        bootstrap_mask = should_bootstrap * same_episode_mask
+
+        return (
+            actions,
+            rewards,
+            values,
+            same_episode_mask,
+            terminated_mask,
+            bootstrap_mask,
+        )
 
     def symlog(self, x):
         return torch.sign(x) * torch.log(torch.abs(x) + 1)
