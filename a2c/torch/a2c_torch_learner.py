@@ -128,7 +128,7 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
         reward_preds, value_preds = self.module[module_id].unroll_model(
             encodings, actions, self.config.model_unroll_steps
         )
-        reward_losses = F.mse_loss(reward_preds, rewards, reduction="none")
+        reward_losses = F.mse_loss(reward_preds, self.symlog(rewards), reduction="none")
         value_losses = F.mse_loss(value_preds, values.detach(), reduction="none")
         reward_loss = possibly_masked_mean(reward_losses * loss_mask) / 2.0
         value_loss = (

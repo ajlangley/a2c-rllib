@@ -74,14 +74,6 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
             outputs[ENCODER_OUT], batch[Columns.ACTIONS]
         )
 
-        # Bootstrap value predictions
-        # TODO: Make this more efficient!
-        # next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
-        # next_outputs = self.encoder(next_obs_batch)
-        # outputs[Columns.VALUES_BOOTSTRAPPED] = self.vf(
-        #     next_outputs[ENCODER_OUT]
-        # ).squeeze(-1)
-
         return outputs
 
     def _compute_bootstrap_values(self, encodings, actions):
