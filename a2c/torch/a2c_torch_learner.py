@@ -7,7 +7,7 @@ from ray.rllib.core.columns import Columns
 from ray.rllib.core.models.base import ENCODER_OUT
 from ray.rllib.utils.annotations import override
 
-from a2c import SHOULD_BOOTSTRAP
+from a2c import SHOULD_BOOTSTRAP, MODEL_VF_TARGETS
 from a2c.a2c_learner import (
     A2CLearner,
     LEARNER_RESULTS_POLICY_LOSS_KEY,
@@ -147,7 +147,7 @@ class A2CTorchLearner(A2CLearner, TorchLearner):
             -1, n_steps, 1
         )
         values = torch.cat(
-            [fwd_out[Columns.VF_PREDS], torch.zeros(n_steps - 1)]
+            [fwd_out[MODEL_VF_TARGETS], torch.zeros(n_steps - 1)]
         ).unfold(-1, n_steps, 1)
 
         # Build the batch mask

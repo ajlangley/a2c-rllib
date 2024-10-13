@@ -7,7 +7,7 @@ from ray.rllib.core.rl_module.apis.value_function_api import ValueFunctionAPI
 import torch
 from torch.nn import functional as F
 
-from a2c import MODEL_REWARD_PREDS, MODEL_VF_PREDS
+from a2c import MODEL_REWARD_PREDS, MODEL_VF_PREDS, MODEL_VF_TARGETS
 from a2c.a2c_rl_module import A2CRLModule
 
 
@@ -68,6 +68,7 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
 
         # Value predictions
         outputs[Columns.VF_PREDS] = self.vf(outputs[ENCODER_OUT]).squeeze(-1)
+        outputs[MODEL_VF_TARGETS] = self._compute_model_vf_targets(batch)
 
         # TODO: Input action?
         outputs[Columns.VALUES_BOOTSTRAPPED] = self._compute_bootstrap_values(
@@ -75,6 +76,11 @@ class A2CTorchRLModule(TorchRLModule, A2CRLModule):
         )
 
         return outputs
+
+    def _compute_model_vf_targets(self, batch):
+        next_obs_batch = {Columns.OBS: batch[Columns.NEXT_OBS]}
+        next_obs_encodings = self.encoder(next_obs_batch)[ENCODER_OUT]
+        return self.vf(next_obs_encodings).squeeze(-1)
 
     def _compute_bootstrap_values(self, encodings, actions):
         actions = self._process_actions_for_model_input(actions)
