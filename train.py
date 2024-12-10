@@ -6,7 +6,7 @@ algo_config = (
     .training(
         lr=5e-4,
         gamma=0.99,
-        train_batch_size_per_learner=2048,
+        train_batch_size_per_learner=256,
         vf_loss_coeff=1.0,
         entropy_coeff=1e-3,
         bootstrap_horizon=64,
@@ -14,15 +14,15 @@ algo_config = (
     )
     .rl_module(
         model_config_dict={
-            "fcnet_hiddens": [256, 256],
+            "fcnet_hiddens": [512, 512],
             "fcnet_activation": "swish",
             "post_fcnet_hiddens": [],
             "post_fcnet_activation": "swish",
         },
     )
-    .environment(env="CartPole-v1")
+    .environment(env="LunarLander-v2")
     .env_runners(
-        num_envs_per_env_runner=32,
+        num_envs_per_env_runner=16,
         num_env_runners=0,
         env_to_module_connector=lambda x: MeanStdFilter(),
     )
